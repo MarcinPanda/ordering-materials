@@ -673,9 +673,10 @@ document.addEventListener('click',e=>{
 });
 /* Clicking beside a dialog closes it — unless you were typing in it: then the click only ends the typing. */
 const typingInDlg=()=>{const a=document.activeElement;return !!a&&$('#dlg').contains(a)&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)};
-let dlgTyping=false;
-$('#dlg').addEventListener('mousedown',e=>{dlgTyping=e.target.id==='dlg'&&typingInDlg()});
-$('#dlg').addEventListener('click',e=>{if(e.target.id!=='dlg')return;if(dlgTyping){dlgTyping=false;document.activeElement.blur();return}closeDlg()});
+let dlgTyping=false,downOnBackdrop=false;
+/* close only when the click both starts and ends outside the window (a drag that ends outside does not count) */
+$('#dlg').addEventListener('pointerdown',e=>{downOnBackdrop=e.target.id==='dlg';dlgTyping=downOnBackdrop&&typingInDlg()});
+$('#dlg').addEventListener('click',e=>{if(e.target.id!=='dlg'||!downOnBackdrop)return;downOnBackdrop=false;if(dlgTyping){dlgTyping=false;document.activeElement.blur();return}closeDlg()});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#dlg').hidden){if(typingInDlg())document.activeElement.blur();else closeDlg();return}
   if(e.key==='Enter'&&e.target.closest&&e.target.closest('#ef')&&e.target.tagName==='INPUT'){e.preventDefault();e.target.blur();return}
   if(e.key==='Enter'&&e.target.classList.contains('cnt')){e.preventDefault();const all=[...document.querySelectorAll('.cnt')],i=all.indexOf(e.target);const nx=all[i+1]||e.target;nx.focus();nx.select();nx.scrollIntoView({block:'center',behavior:'smooth'})}
