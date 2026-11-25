@@ -354,7 +354,10 @@ function saveBar(){const dirty=Object.keys(draft).length;
   return `<span><b>${dirty}</b> ${dirty===1?'item entered':'items entered'} — count date: ${fdate(today())}</span><span style="display:flex;gap:8px"><button class="ghost" data-act="discard">Discard</button><button class="pri" data-act="commit">Save stock count</button></span>`}
 function render(){
   const ae=document.activeElement,fid=ae&&ae.classList&&ae.classList.contains('cnt')?ae.dataset.id:null,aid=ae&&ae.id,pos=ae&&ae.selectionStart;
+  const lists=[...document.querySelectorAll('.list,.scroll')].map(n=>n.scrollTop),wy=scrollY;
   draw();
+  document.querySelectorAll('.list,.scroll').forEach((n,i)=>{if(lists[i])n.scrollTop=lists[i]});
+  if(scrollY!==wy)scrollTo(0,wy);
   if(fid){const n=document.querySelector(`.cnt[data-id="${fid}"]`);n&&n.focus()}
   else if(aid&&(aid==='q'||aid==='rq')){const n=document.getElementById(aid);if(n){n.focus();try{n.setSelectionRange(pos,pos)}catch(e){}}}
 }
@@ -416,8 +419,9 @@ function reqBadges(id){
   return v.length?`<div class="rb">${v.map(e=>`<span class="tag ${ST[e.st].c}">${ST[e.st].t} for ${esc(e.for)} · ${fdate(e.at)}</span>`).join('')}</div>`:'';
 }
 function recentReqs(){
-  const rs=(S.requests||[]).slice(-8).reverse();if(!rs.length)return'';
-  return `<h2 style="margin-top:24px">Recent requests</h2><div class="list" style="max-height:none">${rs.map(r=>{const c={requested:0,ordered:0,received:0};r.lines.forEach(l=>c[stOf(l)]++);const n=r.lines.length;
+  const from=S.settings.recentFrom||'';
+  const rs=(S.requests||[]).filter(r=>r.at>from).slice(-8).reverse();if(!rs.length)return'';
+  return `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:24px"><h2 style="margin:0">Recent requests</h2><button data-act="clearrecent">Clear</button></div><div style="height:10px"></div><div class="list" style="max-height:none">${rs.map(r=>{const c={requested:0,ordered:0,received:0};r.lines.forEach(l=>c[stOf(l)]++);const n=r.lines.length;
     const sum=c.received===n?['Received','t-ok']:c.requested===0?['Ordered','t-count']:c.requested===n?['Requested','t-order']:[(n-c.requested)+' of '+n+' ordered','t-order'];
     return `<div class="li" style="display:block"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><span><b>${fdate(r.at)}</b> · ${esc(r.for||'—')}${r.by?' · '+esc(r.by):''}</span><span class="tag ${sum[1]}">${sum[0]}</span></div>
       <div class="art" style="margin-top:4px">${r.lines.map(l=>esc(l.name)+({ordered:' (ordered)',received:' ✓'}[stOf(l)]||'')).join(' · ')}</div></div>`}).join('')}</div>`;
@@ -510,7 +514,7 @@ function vOrder(){
 }
 function vHist(){
   const h=S.history.slice().reverse();
-  return h.length?h.map(e=>`<details><summary>${new Date(e.at).toLocaleString('en-GB')} — ${e.lines.length} ${e.lines.length===1?'item':'items'}</summary><div class="scroll"><table><thead><tr><th>Material</th><th class="n">Was</th><th class="n">Counted</th><th class="n">Difference</th></tr></thead><tbody>${e.lines.map(l=>`<tr><td>${esc(l.name)}</td><td class="n">${l.prev==null?'—':fmt(l.prev)}</td><td class="n">${fmt(l.now)}</td><td class="n">${l.prev==null?'':(l.now-l.prev>0?'+':'')+fmt(l.now-l.prev)}</td></tr>`).join('')}</tbody></table></div></details>`).join(''):'<div class="empty">History appears after the first saved stock count.</div>';
+  return h.length?`<div style="display:flex;justify-content:flex-end;margin-bottom:10px"><button data-act="clearhist">Clear history</button></div>`+h.map(e=>`<details><summary>${new Date(e.at).toLocaleString('en-GB')} — ${e.lines.length} ${e.lines.length===1?'item':'items'}</summary><div class="scroll"><table><thead><tr><th>Material</th><th class="n">Was</th><th class="n">Counted</th><th class="n">Difference</th></tr></thead><tbody>${e.lines.map(l=>`<tr><td>${esc(l.name)}</td><td class="n">${l.prev==null?'—':fmt(l.prev)}</td><td class="n">${fmt(l.now)}</td><td class="n">${l.prev==null?'':(l.now-l.prev>0?'+':'')+fmt(l.now-l.prev)}</td></tr>`).join('')}</tbody></table></div></details>`).join(''):'<div class="empty">History appears after the first saved stock count.</div>';
 }
 function vSet(){const st=S.settings;
   return `<div class="grid" style="max-width:900px">
@@ -589,6 +593,9 @@ function backup(){saveFile('consumables_backup_'+today()+'.json',JSON.stringify(
 function restoreDlg(b,fname){
   $('#dlg').innerHTML=`<div class="card"><h2>Restore this backup?</h2><p><b>${esc(fname)}</b><br>${b.items.length} items${b.savedAt?', saved '+esc(new Date(b.savedAt).toLocaleString('en-GB')):''}.</p><p>All items, stock levels, history and requests in the app will be replaced by this file. Settings and PIN are taken from the file only where it has them; otherwise your current ones are kept.</p><div class="acts"><button data-act="close">Cancel</button><button class="pri" data-act="restoreok">Replace with backup</button></div></div>`;
   $('#dlg').hidden=false;restoreDlg.data=b}
+function askDlg(title,text,okLabel,act){
+  $('#dlg').innerHTML=`<div class="card"><h2>${title}</h2><p>${text}</p><div class="acts"><button data-act="close">Cancel</button><button class="pri" data-act="${act}">${okLabel}</button></div></div>`;
+  $('#dlg').hidden=false}
 function addToBasket(it){basket.push(it);lsSet('basket',basket);sent=null;render()}
 
 document.addEventListener('click',e=>{
@@ -619,6 +626,10 @@ document.addEventListener('click',e=>{
   else if(a==='pushoff'){window.__omPush().then(p=>p.disable()).then(()=>{toast('Notifications are off for this device');fillPush()}).catch(()=>toast('Could not turn off'))}
   else if(a==='pushtest'){window.__omPush().then(p=>p.notify('requests','Test notification','If you see this, notifications work.','./',true)).then(r=>toast(r&&r.sent!=null?'Sent to '+r.sent+' device'+(r.sent===1?'':'s'):'Could not reach the notification service',6000))}
   else if(a==='signout'){if(window.__omSignOut)window.__omSignOut().then(()=>location.reload())}
+  else if(a==='clearhist')askDlg('Clear stock count history?','All saved stock counts in History will be removed for everyone. Current stock levels stay as they are.','Clear history','clearhistok');
+  else if(a==='clearhistok'){closeDlg();mutate(s=>{s.history=[]},'History cleared').then(ok=>ok&&render())}
+  else if(a==='clearrecent')askDlg('Clear recent requests?','The list of recent requests will be emptied for everyone. Orders that are still open stay in the Orders tab and keep their badges.','Clear list','clearrecentok');
+  else if(a==='clearrecentok'){closeDlg();mutate(s=>{s.settings.recentFrom=new Date().toISOString()},'Recent requests cleared').then(ok=>ok&&render())}
   else if(a==='restoreok'){const b=restoreDlg.data;closeDlg();mutate(s=>{const keep=s.settings||{};for(const k of Object.keys(s))delete s[k];Object.assign(s,defaults(clone(b)));/* settings the file leaves empty (PIN, contacts) keep their current values */const bs=b.settings||{};for(const[k,v]of Object.entries(keep))if(!(k in bs)||bs[k]===''||bs[k]==null)s.settings[k]=v},'Data restored').then(ok=>{if(ok){draft={};lsSet('draft',null);render()}})}
   else if(a==='addother'){const v=$('#other').value.trim();if(!v){$('#other').focus();return}addToBasket({id:null,name:v,art:'',unit:'',qty:''})}
   else if(a==='send')send(t.dataset.via);
