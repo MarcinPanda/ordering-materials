@@ -1,12 +1,15 @@
 /* Ordering Materials service worker: app shell available offline; always tries the network first so updates arrive on next start. */
-const C='om-shell-v3';
+const C='om-shell-v4';
 const SHELL=['./','./index.html','./manifest.webmanifest','./icon-192.png','./icon-512.png','./apple-touch-icon.png'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>Promise.all(SHELL.map(u=>c.add(u).catch(()=>{})))).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==C).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
 self.addEventListener('fetch',e=>{
   const u=new URL(e.request.url);
   if(e.request.method!=='GET'||u.origin!==location.origin)return;   /* Firebase traffic is handled by Firebase itself */
-  e.respondWith(fetch(e.request,{cache:'no-cache'}).then(r=>{const cp=r.clone();caches.open(C).then(c=>c.put(e.request,cp));return r}).catch(()=>caches.match(e.request).then(r=>r||caches.match('./index.html'))));
+  const net=fetch(e.request,{cache:'no-cache'}).then(r=>{if(r.ok){const cp=r.clone();caches.open(C).then(c=>c.put(e.request,cp))}return r});
+  const cached=()=>caches.match(e.request).then(r=>r||caches.match('./index.html'));
+  /* newest version from the network, but if it takes more than 2.5 s use the saved copy (the newer one is stored for next time) */
+  e.respondWith(Promise.race([net,new Promise(res=>setTimeout(()=>cached().then(c=>c&&res(c)),2500))]).catch(()=>cached()));
 });
 
 /* push notifications (sent by the OM relay through Firebase Cloud Messaging, data-only) */
