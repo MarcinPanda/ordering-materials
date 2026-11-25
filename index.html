@@ -280,7 +280,7 @@ window.__fbResolve({
     async notify(topic,title,body,link,includeSelf){
       const u=auth.currentUser;if(!u||!this.configured())return;
       const t=await u.getIdToken();
-      return fetch(PUSH_URL,{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+t},body:JSON.stringify({topic,title,body,link,exclude:includeSelf?"":this.deviceId()})}).then(r=>r.json()).catch(()=>null);
+      return fetch(PUSH_URL,{method:"POST",keepalive:true,headers:{"Content-Type":"application/json",Authorization:"Bearer "+t},body:JSON.stringify({topic,title,body,link,exclude:includeSelf?"":this.deviceId()})}).then(r=>r.json()).catch(()=>null);
     }
   }
 });
@@ -371,9 +371,9 @@ async function fillPush(){
     :`<p class="small" style="margin-top:0">Get a notification on this device when someone submits a new request — also when the app is closed. Turn it on for the person who orders (and the deputy).</p><button class="pri" data-act="pushon">Turn on notifications</button>${Notification.permission==='denied'?'<p class="small" style="color:var(--red)">Notifications are blocked for this site in the browser/phone settings. Allow them there first.</p>':''}`;
 }
 function notifyNewRequest(req){
-  if(!window.__omPush)return;
+  if(!window.__omPush)return Promise.resolve();
   const names=req.lines.map(l=>l.name.replace(/\s*\(.*\)$/,''));
-  window.__omPush().then(p=>p.notify('requests','New request · '+(req.for||'—'),names.slice(0,4).join(', ')+(names.length>4?' +'+(names.length-4)+' more':'')+(req.note?' — '+req.note:''),'./')).catch(()=>{});
+  return window.__omPush().then(p=>p.notify('requests','New request · '+(req.for||'—'),names.slice(0,4).join(', ')+(names.length>4?' +'+(names.length-4)+' more':'')+(req.note?' — '+req.note:''),'./')).catch(()=>{});
 }
 function draw(){
   if(!S){$('#app').innerHTML=`<div class="err">${esc(loadErr||'Loading…')}</div>`;return}
@@ -434,7 +434,8 @@ async function send(via,o={}){
       lines:basket.map(b=>{const it=items[b.id]||{};return{item:b.id,name:b.name,art:b.art||'',unit:b.unit||'',supplier:it.supplier||'',link:it.link||'',status:'requested'}})};
     const ok=await mutate(s=>{s.requests=[...(s.requests||[]),req]},null);
     if(!ok){toast('Could not save the request in the app — check the network drive.',6000);return}
-    notifyNewRequest(req);
+    /* wait (max 4 s) so opening Outlook/Teams cannot cut off the notification call */
+    await Promise.race([notifyNewRequest(req),new Promise(r=>setTimeout(r,4000))]);
   }
   let url;
   if(via==='mail'){const subj='Consumables order ('+(reqFor||'—')+'): '+basket.map(b=>b.name.replace(/\s*\(.*\)$/,'')).slice(0,3).join(', ')+(basket.length>3?'…':'');
