@@ -95,6 +95,8 @@ summary{cursor:pointer;font-weight:600}
 }
 
 th.sortable{cursor:pointer;user-select:none}th.sortable:hover{color:var(--ink)}
+.nmrow{display:flex;align-items:center;gap:6px}.wait{display:inline-flex;color:light-dark(#a67c00,#ffd21f);cursor:help;flex-shrink:0;border-radius:50%;outline-offset:2px}
+#tip{position:fixed;z-index:60;background:#16181d;color:#fff;font-size:13px;padding:6px 10px;border-radius:8px;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.35);white-space:nowrap}
 
 /* desktop app additions */
 body{font-family:"Segoe UI",Barlow,system-ui,sans-serif}
@@ -343,6 +345,8 @@ function calc(it,s=stockOf(it)){
   if(s<=0)return{k:'out',t:'Out of stock'};
   return{k:'ok',t:'In stock'};
 }
+const waitText=i=>i.wait&&i.wait.n>0?i.wait.n+' '+(i.wait.u==='w'?(i.wait.n==1?'week':'weeks'):(i.wait.n==1?'day':'days')):'';
+const waitIcon=i=>{const w=waitText(i);return w?`<span class="wait" tabindex="0" role="img" aria-label="Waiting time ${w}" data-tip="Waiting time for this item: ${w}"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M12 7v5l3.5 2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>`:''};
 const pname=i=>/^https:\/\//.test(i.link||'')?`<a href="${esc(i.link)}" target="_blank" rel="noopener" class="nm plink" data-url="${esc(i.link)}" title="Open product page">${esc(i.name)}</a>`:`<span class="nm">${esc(i.name)}</span>`;
 const tag=c=>`<span class="tag t-${c.k}">${c.t}</span>`;
 const recipient=()=>{const st=S.settings;return st.deputyOn&&EMAIL.test(st.deputy)?st.deputy:st.recipient};
@@ -498,12 +502,12 @@ function vCount(){
   const th=(k,t,cls='')=>`<th class="sortable ${cls}" data-sort="${k}" title="Sort">${t}${sortBy===k?(sortDir>0?' ▲':' ▼'):''}</th>`;
   return `<div class="bar"><input type="search" id="q" placeholder="Search: name, number, location, supplier" value="${esc(q)}" aria-label="Search">
   <select id="filt" aria-label="Filter">${[['all','All statuses'],['todo','To count'],['ok','In stock'],['order','Out of stock'],['edited','Entered now']].map(([k,t])=>`<option value="${k}" ${filt===k?'selected':''}>${t}</option>`).join('')}</select>
-  <select id="sort" aria-label="Sort">${[['name','Sort: name'],['loc','Sort: location (route)'],['sup','Sort: supplier'],['prev','Sort: previous stock'],['phys','Sort: physical stock'],['unit','Sort: unit'],['status','Sort: status'],['counted','Sort: last count']].map(([k,t])=>`<option value="${k}" ${sortBy===k?'selected':''}>${t}</option>`).join('')}</select><button data-act="sortdir" title="Reverse order" aria-label="Reverse order">${sortDir>0?'▲ Ascending':'▼ Descending'}</button>
+  <select id="sort" aria-label="Sort">${[['name','Sort: name'],['loc','Sort: location (route)'],['sup','Sort: supplier'],['prev','Sort: previous stock'],['phys','Sort: physical stock'],['unit','Sort: unit'],['status','Sort: status'],['counted','Sort: last count']].map(([k,t])=>`<option value="${k}" ${sortBy===k?'selected':''}>${t}</option>`).join('')}</select>
   <button data-act="new">+ New item</button><button data-act="export">Export CSV</button></div>
   <p class="note">Enter the counted stock in the yellow field; Enter moves to the next one. If the stock is unchanged, enter it anyway — the item will be marked as counted today.</p>
   ${rows.length?`<table class="stack"><thead><tr>${th('name','Material')}${th('loc','Location')}${th('prev','Previous stock','n')}${th('phys','Physical stock','n')}${th('unit','Unit')}${th('status','Status')}${th('counted','Last count')}<th></th></tr></thead><tbody>
   ${rows.map(i=>{const c=calc(i),d=i.id in draft,v=d?draft[i.id]:'';
-   return `<tr class="${d?'chg':''}" data-row="${i.id}"><td class="first"><div>${pname(i)}</div><div class="art">${esc(i.art)} · ${esc(i.supplier)}</div></td><td>${esc(i.loc)}</td><td class="n">${i.stock==null?'—':fmt(i.stock)}</td>
+   return `<tr class="${d?'chg':''}" data-row="${i.id}"><td class="first"><div class="nmrow">${waitIcon(i)}${pname(i)}</div><div class="art">${esc(i.art)} · ${esc(i.supplier)}</div></td><td>${esc(i.loc)}</td><td class="n">${i.stock==null?'—':fmt(i.stock)}</td>
    <td class="n"><input class="cnt" inputmode="decimal" data-id="${i.id}" value="${esc(v)}" placeholder="${i.stock==null?'':fmt(i.stock)}" aria-label="Physical stock ${esc(i.name)}"><span data-diff>${diffHTML(i)}</span></td>
    <td>${esc(i.unit)}</td><td data-st>${tag(c)}</td><td>${fdate(i.counted)}</td><td><button class="sm" data-edit="${i.id}">Edit</button></td></tr>`}).join('')}</tbody></table>`:'<div class="empty">No items for this filter.</div>'}`;
 }
@@ -544,14 +548,17 @@ function openEdit(id){
   const it=id?S.items.find(x=>x.id===id):{};
   const units=[...new Set(['pcs','box','pallet','roll','pack','bag',...S.items.map(i=>(i.unit||'').trim()).filter(Boolean)])].sort((a,b)=>a.localeCompare(b,'en'));
   const unitField=v=>`<select id="f-unit"><option value="" ${v?'':'selected'}>— choose —</option>${units.map(u=>`<option ${u===v?'selected':''}>${esc(u)}</option>`).join('')}<option value="__other">Other…</option></select><input id="f-unit-other" placeholder="Type a new unit" style="margin-top:8px" hidden>`;
-  $('#dlg').innerHTML=`<form class="card wide" id="ef"><h2>${id?'Edit item':'New item'}</h2><div class="grid">${F.map(([k,t,n])=>`<div class="field"><label for="f-${k}">${t}</label>${k==='unit'?unitField(it.unit||''):`<input id="f-${k}" ${n?'inputmode="decimal"':''} value="${esc(n?fmt(it[k]):it[k])}" ${k==='name'?'required':''}>`}</div>`).join('')}</div>
+  $('#dlg').innerHTML=`<form class="card wide" id="ef"><h2>${id?'Edit item':'New item'}</h2><div class="grid">${F.map(([k,t,n])=>`<div class="field"><label for="f-${k}">${t}</label>${k==='unit'?unitField(it.unit||''):`<input id="f-${k}" ${n?'inputmode="decimal"':''} value="${esc(n?fmt(it[k]):it[k])}" ${k==='name'?'required':''}>`}</div>`).join('')}
+  <div class="field"><label for="f-wn">Waiting time after ordering (optional — only for slow items)</label><div style="display:flex;gap:8px"><input id="f-wn" inputmode="numeric" style="flex:1" placeholder="e.g. 3" value="${it.wait&&it.wait.n?it.wait.n:''}"><select id="f-wu" style="width:auto;flex:1"><option value="d" ${it.wait&&it.wait.u==='w'?'':'selected'}>days</option><option value="w" ${it.wait&&it.wait.u==='w'?'selected':''}>weeks</option></select></div></div></div>
   <div class="acts">${id?`<button type="button" class="del ghost" data-act="del" data-id="${id}">Delete item</button>`:''}<button type="button" data-act="close">Cancel</button><button class="pri" type="submit">Save</button></div></form>`;
   $('#dlg').hidden=false;$('#f-name').focus();
   $('#f-unit').onchange=e=>{const o=$('#f-unit-other');o.hidden=e.target.value!=='__other';if(!o.hidden)o.focus()};
   $('#ef').onsubmit=e=>{e.preventDefault();const o={};
     for(const[k,t,n]of F){let v=$('#f-'+k).value.trim();if(k==='unit'&&v==='__other'){v=$('#f-unit-other').value.trim();if(!v){toast('Type the new unit');$('#f-unit-other').focus();return}}if(n){const x=num(v);if(isNaN(x)){toast('Invalid number in field: '+t);return}o[k]=x}else o[k]=v}
+    const wn=$('#f-wn').value.trim();if(wn&&!/^\d{1,3}$/.test(wn)){toast('Waiting time: enter a whole number');$('#f-wn').focus();return}
+    o.wait=wn&&+wn>0?{n:+wn,u:$('#f-wu').value}:null;
     const nid=id||'i'+Date.now().toString(36);closeDlg();
-    mutate(s=>{const cur=s.items.find(x=>x.id===nid);const base=cur||{id:nid,counted:null};const m={...base,...o};if(o.stock!=null&&(!cur||o.stock!==cur.stock))m.counted=today();s.items=cur?s.items.map(x=>x.id===nid?m:x):[...s.items,m]},'Item saved')};
+    mutate(s=>{const cur=s.items.find(x=>x.id===nid);const base=cur||{id:nid,counted:null};const m={...base,...o};if(!m.wait)delete m.wait;if(o.stock!=null&&(!cur||o.stock!==cur.stock))m.counted=today();s.items=cur?s.items.map(x=>x.id===nid?m:x):[...s.items,m]},'Item saved')};
 }
 function closeDlg(){$('#dlg').hidden=true;$('#dlg').innerHTML=''}
 function confirmDel(id){const it=S.items.find(x=>x.id===id);
@@ -604,6 +611,13 @@ function askDlg(title,text,okLabel,act){
   $('#dlg').hidden=false}
 function addToBasket(it){basket.push(it);lsSet('basket',basket);sent=null;render()}
 
+const tipEl=document.createElement('div');tipEl.id='tip';tipEl.hidden=true;document.body.appendChild(tipEl);
+const showTip=(el,x,y)=>{tipEl.textContent=el.dataset.tip;tipEl.hidden=false;const w=tipEl.offsetWidth;tipEl.style.left=Math.min(x+14,innerWidth-w-8)+'px';tipEl.style.top=(y+16)+'px'};
+document.addEventListener('mousemove',e=>{const w=e.target.closest&&e.target.closest('.wait');if(w)showTip(w,e.clientX,e.clientY);else tipEl.hidden=true});
+document.addEventListener('focusin',e=>{if(e.target.classList&&e.target.classList.contains('wait')){const r=e.target.getBoundingClientRect();showTip(e.target,r.right,r.top)}});
+document.addEventListener('focusout',()=>{tipEl.hidden=true});
+document.addEventListener('click',e=>{const w=e.target.closest&&e.target.closest('.wait');if(w&&matchMedia('(hover: none)').matches)toast(w.dataset.tip,3000)},true);
+document.addEventListener('scroll',()=>{tipEl.hidden=true},true);
 document.addEventListener('click',e=>{
   const t=e.target.closest('button,a,[data-act],[data-sort]');if(!t)return;
   if(t.dataset.sort){const k=t.dataset.sort;if(sortBy===k)sortDir=-sortDir;else{sortBy=k;sortDir=1}render();return}
