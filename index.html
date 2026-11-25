@@ -97,6 +97,7 @@ summary{cursor:pointer;font-weight:600}
 th.sortable{cursor:pointer;user-select:none}th.sortable:hover{color:var(--ink)}
 .nmrow{display:flex;align-items:center;gap:6px}.wait{display:inline-flex;color:light-dark(#a67c00,#ffd21f);cursor:help;flex-shrink:0;border-radius:50%;outline-offset:2px}
 #tip{position:fixed;z-index:60;background:#16181d;color:#fff;font-size:13px;padding:6px 10px;border-radius:8px;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.35);white-space:nowrap}
+.otab col.cq{width:130px}.oqty{width:70px;text-align:right;padding:6px 8px;background:var(--yfield);border:2px solid var(--yedge);border-radius:8px}
 
 /* desktop app additions */
 body{font-family:"Segoe UI",Barlow,system-ui,sans-serif}
@@ -130,7 +131,7 @@ textarea{width:100%;min-height:70px;font:inherit;font-size:16px;padding:10px 12p
 .seg button[aria-pressed=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .ck{width:22px;height:22px;min-height:0;padding:0;margin:0}
 button:disabled{opacity:.45;cursor:not-allowed}
-.otab{table-layout:fixed;min-width:760px}.otab col.c0{width:44px}.otab col.c2{width:120px}.otab col.c3{width:90px}.otab col.c4{width:90px}.otab col.c5{width:130px}.otab col.c6{width:220px}
+.otab{table-layout:fixed;min-width:890px}.otab col.c0{width:44px}.otab col.c2{width:120px}.otab col.c3{width:90px}.otab col.c4{width:90px}.otab col.c5{width:130px}.otab col.c6{width:220px}
 .card.wide{width:min(980px,100%);padding:28px 32px}.card.wide .grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:16px 20px}
 .card select{width:100%}
 .brand{display:flex;align-items:center;gap:12px}.brand img{border-radius:10px;flex:none}
@@ -472,17 +473,20 @@ function vOrders(){
   const groups=Object.keys(by).sort((a,b)=>a===NL?1:b===NL?-1:a.localeCompare(b,'en'));
   for(const k of [...sel])if(!all.some(l=>l.key===k&&stOf(l)!=='received'))sel.delete(k);
   const selL=all.filter(l=>sel.has(l.key)), nR=selL.filter(l=>stOf(l)==='requested').length, nO=selL.filter(l=>stOf(l)==='ordered').length;
-  const lnk=l=>/^https:\/\//.test(l.link||'')?`<a href="${esc(l.link)}" target="_blank" rel="noopener" class="nm plink" data-url="${esc(l.link)}" title="Open product page">${esc(l.name)}</a>`:`<span class="nm">${esc(l.name)}</span>`;
+  const IT=Object.fromEntries(S.items.map(i=>[i.id,i]));
+  const qtyCell=l=>{const it=IT[l.item]||{},st=stOf(l),u=esc(l.unit||it.unit||''),v=l.qty!=null?l.qty:(it.ordQty!=null?it.ordQty:'');
+    return st==='requested'?`<input class="oqty" inputmode="decimal" data-qkey="${esc(l.key)}" value="${esc(fmt(v))}" placeholder="qty" aria-label="Quantity to order ${esc(l.name)}"> <span class="art">${u}</span>`:(l.qty!=null?`${fmt(l.qty)} <span class="art">${u}</span>`:'<span class="art">—</span>')};
+  const lnk=l=>(IT[l.item]?waitIcon(IT[l.item]):'')+(/^https:\/\//.test(l.link||'')?`<a href="${esc(l.link)}" target="_blank" rel="noopener" class="nm plink" data-url="${esc(l.link)}" title="Open product page">${esc(l.name)}</a>`:`<span class="nm">${esc(l.name)}</span>`);
   const stCell=l=>{const st=stOf(l),d=st==='ordered'?l.orderedAt:st==='received'?l.receivedAt:null;return `<span class="tag ${ST[st].c}">${ST[st].t}${d?' '+fdate(d):''}</span>${st!=='requested'?` <button class="sm ghost" data-undo="${esc(l.key)}" title="Back to ${st==='received'?'Ordered':'Requested'}">Undo</button>`:''}`};
   return `<div class="bar"><select id="ordfilt" aria-label="Show">${[['open','Active (requested + ordered)'],['requested','Requested only'],['ordered','Ordered — waiting for delivery'],['received','Received'],['all','All']].map(([k,t])=>`<option value="${k}" ${ordFilt===k?'selected':''}>${t}</option>`).join('')}</select>
    <button class="pri" data-act="markord" ${nR?'':'disabled'}>Mark as ordered${nR?' ('+nR+')':''}</button>
    <button class="pri" data-act="markrec" ${nO?'':'disabled'}>Mark as received${nO?' ('+nO+')':''}</button></div>
-  <p class="note" style="margin-top:-4px">Grouped by supplier, so you can order everything from one shop in one go. Click an item name to open its page. Received items leave this list (see “Received”).</p>
+  <p class="note" style="margin-top:-4px">Grouped by supplier, so you can order everything from one shop in one go. Enter the quantity, click the item name to open its shop page and put that amount in the basket; when the whole order is placed, select the items and click “Mark as ordered”. Received items leave this list (see “Received”).</p>
   ${groups.length?groups.map(g=>{const rows=by[g].sort((a,b)=>a.name.localeCompare(b.name,'en')||a.at.localeCompare(b.at)),selKeys=rows.filter(l=>stOf(l)!=='received').map(l=>l.key),shop=g===NL?'':shopOf(g);
    return `<section class="sup"><header><b>${esc(g)}</b><span style="display:flex;gap:12px;align-items:center">${shop?`<a href="${esc(shop)}" target="_blank" rel="noopener" data-url="${esc(shop)}">Shop ↗</a>`:''}${selKeys.length?`<button class="sm" data-selsup="${esc(g)}">${selKeys.every(k=>sel.has(k))?'Unselect all':'Select all'}</button>`:''}</span></header>
-   <div class="scroll"><table class="otab"><colgroup><col class="c0"><col><col class="c2"><col class="c4"><col class="c5"><col class="c6"></colgroup><thead><tr><th></th><th>Material</th><th>Number</th><th>For</th><th>Requested</th><th>Status</th></tr></thead><tbody>
+   <div class="scroll"><table class="otab"><colgroup><col class="c0"><col><col class="c2"><col class="cq"><col class="c4"><col class="c5"><col class="c6"></colgroup><thead><tr><th></th><th>Material</th><th>Number</th><th>Qty to order</th><th>For</th><th>Requested</th><th>Status</th></tr></thead><tbody>
    ${rows.map(l=>`<tr class="${sel.has(l.key)?'chg':''}"><td>${stOf(l)!=='received'?`<input type="checkbox" class="ck" data-sel="${esc(l.key)}" ${sel.has(l.key)?'checked':''} aria-label="Select ${esc(l.name)}">`:''}</td>
-    <td>${lnk(l)}${l.note?`<div class="art">Note: ${esc(l.note)}</div>`:''}</td><td>${esc(l.art)}</td>
+    <td><div class="nmrow">${lnk(l)}</div>${l.note?`<div class="art">Note: ${esc(l.note)}</div>`:''}</td><td>${esc(l.art)}</td><td>${qtyCell(l)}</td>
     <td><span class="tag t-data">${esc(l.for||'—')}</span></td><td>${fdate(l.at)}${l.by?`<div class="art">${esc(l.by)}</div>`:''}</td>
     <td>${stCell(l)}</td></tr>`).join('')}
    </tbody></table></div></section>`}).join(''):`<div class="empty">${ordFilt==='open'?'Nothing is waiting — no open requests or deliveries.':'Nothing here.'}</div>`}`;
@@ -520,7 +524,7 @@ function vOrder(){
   const by={};list.forEach(x=>(by[x.i.supplier||'No supplier']??=[]).push(x));
   return `<div class="bar"><button data-act="copyorder">Copy list</button><span class="note">Items counted at 0, grouped by supplier.</span></div>
   ${list.length?Object.keys(by).sort().map(s=>`<section class="sup"><header><b>${esc(s)}</b>${/^https:\/\//.test(by[s][0].i.link)?`<a href="${esc(by[s][0].i.link)}" target="_blank" rel="noopener" data-url="${esc(by[s][0].i.link)}">Supplier shop ↗</a>`:''}</header><div class="scroll"><table><thead><tr><th>Material</th><th>Number</th><th class="n">Stock</th><th>Status</th></tr></thead><tbody>
-  ${by[s].map(({i,c})=>`<tr><td>${pname(i)}</td><td>${esc(i.art)}</td><td class="n">${fmt(i.stock)} ${esc(i.unit)}</td><td>${tag(c)}</td></tr>`).join('')}</tbody></table></div></section>`).join(''):'<div class="empty">Nothing is out of stock.</div>'}`;
+  ${by[s].map(({i,c})=>`<tr><td><div class="nmrow">${waitIcon(i)}${pname(i)}</div>${i.ordQty!=null?`<div class="art">Usual order: ${fmt(i.ordQty)} ${esc(i.unit)}</div>`:''}</td><td>${esc(i.art)}</td><td class="n">${fmt(i.stock)} ${esc(i.unit)}</td><td>${tag(c)}</td></tr>`).join('')}</tbody></table></div></section>`).join(''):'<div class="empty">Nothing is out of stock.</div>'}`;
 }
 function vHist(){
   const h=S.history.slice().reverse();
@@ -549,6 +553,7 @@ function openEdit(id){
   const units=[...new Set(['pcs','box','pallet','roll','pack','bag',...S.items.map(i=>(i.unit||'').trim()).filter(Boolean)])].sort((a,b)=>a.localeCompare(b,'en'));
   const unitField=v=>`<select id="f-unit"><option value="" ${v?'':'selected'}>— choose —</option>${units.map(u=>`<option ${u===v?'selected':''}>${esc(u)}</option>`).join('')}<option value="__other">Other…</option></select><input id="f-unit-other" placeholder="Type a new unit" style="margin-top:8px" hidden>`;
   $('#dlg').innerHTML=`<form class="card wide" id="ef"><h2>${id?'Edit item':'New item'}</h2><div class="grid">${F.map(([k,t,n])=>`<div class="field"><label for="f-${k}">${t}</label>${k==='unit'?unitField(it.unit||''):`<input id="f-${k}" ${n?'inputmode="decimal"':''} value="${esc(n?fmt(it[k]):it[k])}" ${k==='name'?'required':''}>`}</div>`).join('')}
+  <div class="field"><label for="f-oq">Usual order quantity (optional — filled in automatically in Orders)</label><div style="display:flex;gap:8px;align-items:center"><input id="f-oq" inputmode="decimal" style="flex:1" placeholder="e.g. 10" value="${it.ordQty!=null?esc(fmt(it.ordQty)):''}"><span class="art" id="f-oq-u">${esc(it.unit||'')}</span></div></div>
   <div class="field"><label for="f-wn">Waiting time after ordering (optional — only for slow items)</label><div style="display:flex;gap:8px"><input id="f-wn" inputmode="numeric" style="flex:1" placeholder="e.g. 3" value="${it.wait&&it.wait.n?it.wait.n:''}"><select id="f-wu" style="width:auto;flex:1"><option value="d" ${it.wait&&it.wait.u==='w'?'':'selected'}>days</option><option value="w" ${it.wait&&it.wait.u==='w'?'selected':''}>weeks</option></select></div></div></div>
   <div class="acts">${id?`<button type="button" class="del ghost" data-act="del" data-id="${id}">Delete item</button>`:''}<button type="button" data-act="close">Cancel</button><button class="pri" type="submit">Save</button></div></form>`;
   $('#dlg').hidden=false;$('#f-name').focus();
@@ -557,8 +562,9 @@ function openEdit(id){
     for(const[k,t,n]of F){let v=$('#f-'+k).value.trim();if(k==='unit'&&v==='__other'){v=$('#f-unit-other').value.trim();if(!v){toast('Type the new unit');$('#f-unit-other').focus();return}}if(n){const x=num(v);if(isNaN(x)){toast('Invalid number in field: '+t);return}o[k]=x}else o[k]=v}
     const wn=$('#f-wn').value.trim();if(wn&&!/^\d{1,3}$/.test(wn)){toast('Waiting time: enter a whole number');$('#f-wn').focus();return}
     o.wait=wn&&+wn>0?{n:+wn,u:$('#f-wu').value}:null;
+    const oq=$('#f-oq').value.trim(),oqn=oq===''?null:num(oq);if(oq!==''&&(isNaN(oqn)||oqn<=0)){toast('Usual order quantity: enter a number');$('#f-oq').focus();return}o.ordQty=oqn;
     const nid=id||'i'+Date.now().toString(36);closeDlg();
-    mutate(s=>{const cur=s.items.find(x=>x.id===nid);const base=cur||{id:nid,counted:null};const m={...base,...o};if(!m.wait)delete m.wait;if(o.stock!=null&&(!cur||o.stock!==cur.stock))m.counted=today();s.items=cur?s.items.map(x=>x.id===nid?m:x):[...s.items,m]},'Item saved')};
+    mutate(s=>{const cur=s.items.find(x=>x.id===nid);const base=cur||{id:nid,counted:null};const m={...base,...o};if(!m.wait)delete m.wait;if(m.ordQty==null)delete m.ordQty;if(o.stock!=null&&(!cur||o.stock!==cur.stock))m.counted=today();s.items=cur?s.items.map(x=>x.id===nid?m:x):[...s.items,m]},'Item saved')};
 }
 function closeDlg(){$('#dlg').hidden=true;$('#dlg').innerHTML=''}
 function confirmDel(id){const it=S.items.find(x=>x.id===id);
@@ -639,7 +645,8 @@ document.addEventListener('click',e=>{
   else if(a==='discard'){draft={};lsSet('draft',null);render()}
   else if(a==='commit')commit();
   else if(a==='markord'||a==='markrec'){const from=a==='markord'?'requested':'ordered',to=a==='markord'?'ordered':'received',ks=orderLines().filter(l=>sel.has(l.key)&&stOf(l)===from).map(l=>l.key),now=new Date().toISOString();
-    setLines(ks,l=>{l.status=to;l[to+'At']=now;l[to+'By']=ME},ks.length+(ks.length===1?' item':' items')+' marked as '+to).then(ok=>{if(ok){ks.forEach(k=>sel.delete(k));render()}})}
+    const dq=Object.fromEntries(S.items.map(i=>[i.id,i.ordQty]));
+    setLines(ks,l=>{l.status=to;l[to+'At']=now;l[to+'By']=ME;if(to==='ordered'&&l.qty==null&&dq[l.item]!=null)l.qty=dq[l.item]},ks.length+(ks.length===1?' item':' items')+' marked as '+to).then(ok=>{if(ok){ks.forEach(k=>sel.delete(k));render()}})}
   else if(a==='export')download();
   else if(a==='backup')backup();
   else if(a==='gobasket'){e.preventDefault();$('#basket').scrollIntoView({behavior:'smooth',block:'start'})}
@@ -684,6 +691,7 @@ document.addEventListener('change',e=>{const t=e.target;
   if(t.id==='restore-file'){const f=t.files&&t.files[0];t.value='';if(!f)return;f.text().then(txt=>{let b;try{b=JSON.parse(txt)}catch(e){toast('This is not a valid backup file');return}if(!b||!Array.isArray(b.items)||!b.items.length||!b.items.every(i=>i&&i.id&&i.name)){toast('This file does not contain app data');return}restoreDlg(b,f.name)});return}
   if(['s-rec','s-dep','s-depon'].includes(t.id)||t.name==='ch'){saveSettings();return}
   if(t.dataset.sel){t.checked?sel.add(t.dataset.sel):sel.delete(t.dataset.sel);render();return}
+  if(t.classList.contains('oqty')){const v=t.value.trim(),n=v===''?null:num(v);if(v!==''&&(isNaN(n)||n<0)){toast('Quantity: enter a number');return}setLines([t.dataset.qkey],l=>{if(n==null)delete l.qty;else l.qty=n},null);return}
   if(t.id==='ordfilt'){ordFilt=t.value;sel.clear();render();return}
   if(t.id==='filt'){filt=t.value;render()}
   if(t.id==='sort'){sortBy=t.value;render()}
