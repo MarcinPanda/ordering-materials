@@ -94,6 +94,8 @@ summary{cursor:pointer;font-weight:600}
  .stack td.first{padding-inline-start:0}.stack td.first::before{display:none}
 }
 
+th.sortable{cursor:pointer;user-select:none}th.sortable:hover{color:var(--ink)}
+
 /* desktop app additions */
 body{font-family:"Segoe UI",Barlow,system-ui,sans-serif}
 h1,h2,.big,.kpi b,.sup header b{font-family:"Segoe UI Semibold","Segoe UI",sans-serif;letter-spacing:-.01em}
@@ -307,7 +309,7 @@ let draft=lsGet('draft')||{};
 let basket=lsGet('basket')||[];      // [{id|null,name,art,unit,qty}]
 let note='', sent=null, rq='', reqFor=lsGet('reqFor')||'', ME='';
 let ordFilt='open', sel=new Set();
-let q='', filt='all', sortBy='name';
+let q='', filt='all', sortBy='name', sortDir=1;
 
 function toast(t,ms=3800){const e=$('#toast');e.textContent=t;e.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>e.hidden=true,ms)}
 function defaults(s){{const NL={zak:'bag',zakken:'bag',doos:'box',dozen:'box',stuks:'pcs',stuk:'pcs',rol:'roll',rollen:'roll',pak:'pack',pallets:'pallet'};(s.items||[]).forEach(i=>{const u=(i.unit||'').trim().toLowerCase();if(NL[u])i.unit=NL[u]});(s.requests||[]).forEach(r=>(r.lines||[]).forEach(l=>{const u=(l.unit||'').trim().toLowerCase();if(NL[u])l.unit=NL[u]}))}s.requests=s.requests||[];if(!(s.settings||{}).fix3){(s.items||[]).forEach(i=>{if(i.art==='1196735'&&(!i.link||i.link==='https://www.vikingdirect.nl/nl/'||i.link==='https://www.vikingdirect.nl/nl/viking-multifunctionele-doekjes-100-stuks-p-1196735'))i.link='https://www.vikingdirect.nl/nl/viking-multifunctionele-doekjes-100-stuks-p-1196735?queryID=7cb1c4e4cbeb3f9742557da2efa0d97a'});s.settings=s.settings||{};s.settings.fix3=true}if(!(s.settings||{}).fix1){(s.items||[]).forEach(i=>{if(i.id==='i12'&&i.unit==='box'&&i.pack===40)i.pack=null});s.settings=s.settings||{};s.settings.fix1=true}(s.items||[]).forEach(i=>{delete i.usage;delete i.lead});if(s.settings){delete s.settings.safety;delete s.settings.cycle}s.settings=Object.assign({recipient:'',deputy:'',deputyOn:false,channel:'teams',pinHash:''},s.settings||{});s.history=s.history||[];return s}
@@ -487,15 +489,19 @@ function setLines(keys,fn,msg){const ks=new Set(keys);return mutate(s=>{for(cons
 function vCount(){
   const ql=q.toLowerCase();
   let rows=S.items.filter(i=>!ql||(i.name+' '+i.art+' '+i.loc+' '+i.supplier).toLowerCase().includes(ql));
-  rows=rows.filter(i=>{const c=calc(i);return filt==='all'||(filt==='todo'&&i.stock==null&&!(i.id in draft))||(filt==='order'&&c.k==='out')||(filt==='edited'&&i.id in draft)});
-  const key={name:i=>i.name.toLowerCase(),loc:i=>(i.loc||'~').toLowerCase(),sup:i=>(i.supplier+i.name).toLowerCase()}[sortBy];
-  rows.sort((a,b)=>key(a)<key(b)?-1:1);
+  rows=rows.filter(i=>{const c=calc(i);return filt==='all'||(filt==='todo'&&c.k==='count')||(filt==='ok'&&c.k==='ok')||(filt==='order'&&c.k==='out')||(filt==='edited'&&i.id in draft)});
+  const NUMLAST=v=>v==null||isNaN(v)?Infinity:v, ST_ORD={out:0,count:1,ok:2};
+  const key={name:i=>i.name.toLowerCase(),loc:i=>(i.loc||'~').toLowerCase(),sup:i=>(i.supplier+i.name).toLowerCase(),
+    prev:i=>NUMLAST(i.stock),phys:i=>NUMLAST(stockOf(i)),unit:i=>(i.unit||'~').toLowerCase(),status:i=>ST_ORD[calc(i).k],counted:i=>i.counted||'~'}[sortBy]||(i=>i.name.toLowerCase());
+  const miss=v=>v===Infinity||v==='~';   /* empty values always at the end */
+  rows.sort((a,b)=>{const x=key(a),y=key(b);if(miss(x)!==miss(y))return miss(x)?1:-1;if(x===y)return a.name.localeCompare(b.name);return (x<y?-1:1)*sortDir});
+  const th=(k,t,cls='')=>`<th class="sortable ${cls}" data-sort="${k}" title="Sort">${t}${sortBy===k?(sortDir>0?' ▲':' ▼'):''}</th>`;
   return `<div class="bar"><input type="search" id="q" placeholder="Search: name, number, location, supplier" value="${esc(q)}" aria-label="Search">
-  <select id="filt" aria-label="Filter">${[['all','All'],['todo','Not counted'],['edited','Entered now'],['order','Out of stock']].map(([k,t])=>`<option value="${k}" ${filt===k?'selected':''}>${t}</option>`).join('')}</select>
-  <select id="sort" aria-label="Sort">${[['name','Sort: name'],['loc','Sort: location (route)'],['sup','Sort: supplier']].map(([k,t])=>`<option value="${k}" ${sortBy===k?'selected':''}>${t}</option>`).join('')}</select>
+  <select id="filt" aria-label="Filter">${[['all','All statuses'],['todo','To count'],['ok','In stock'],['order','Out of stock'],['edited','Entered now']].map(([k,t])=>`<option value="${k}" ${filt===k?'selected':''}>${t}</option>`).join('')}</select>
+  <select id="sort" aria-label="Sort">${[['name','Sort: name'],['loc','Sort: location (route)'],['sup','Sort: supplier'],['prev','Sort: previous stock'],['phys','Sort: physical stock'],['unit','Sort: unit'],['status','Sort: status'],['counted','Sort: last count']].map(([k,t])=>`<option value="${k}" ${sortBy===k?'selected':''}>${t}</option>`).join('')}</select><button data-act="sortdir" title="Reverse order" aria-label="Reverse order">${sortDir>0?'▲ Ascending':'▼ Descending'}</button>
   <button data-act="new">+ New item</button><button data-act="export">Export CSV</button></div>
   <p class="note">Enter the counted stock in the yellow field; Enter moves to the next one. If the stock is unchanged, enter it anyway — the item will be marked as counted today.</p>
-  ${rows.length?`<table class="stack"><thead><tr><th>Material</th><th>Location</th><th class="n">Previous stock</th><th class="n">Physical stock</th><th>Unit</th><th>Status</th><th>Last count</th><th></th></tr></thead><tbody>
+  ${rows.length?`<table class="stack"><thead><tr>${th('name','Material')}${th('loc','Location')}${th('prev','Previous stock','n')}${th('phys','Physical stock','n')}${th('unit','Unit')}${th('status','Status')}${th('counted','Last count')}<th></th></tr></thead><tbody>
   ${rows.map(i=>{const c=calc(i),d=i.id in draft,v=d?draft[i.id]:'';
    return `<tr class="${d?'chg':''}" data-row="${i.id}"><td class="first"><div>${pname(i)}</div><div class="art">${esc(i.art)} · ${esc(i.supplier)}</div></td><td>${esc(i.loc)}</td><td class="n">${i.stock==null?'—':fmt(i.stock)}</td>
    <td class="n"><input class="cnt" inputmode="decimal" data-id="${i.id}" value="${esc(v)}" placeholder="${i.stock==null?'':fmt(i.stock)}" aria-label="Physical stock ${esc(i.name)}"><span data-diff>${diffHTML(i)}</span></td>
@@ -599,7 +605,8 @@ function askDlg(title,text,okLabel,act){
 function addToBasket(it){basket.push(it);lsSet('basket',basket);sent=null;render()}
 
 document.addEventListener('click',e=>{
-  const t=e.target.closest('button,a,[data-act]');if(!t)return;
+  const t=e.target.closest('button,a,[data-act],[data-sort]');if(!t)return;
+  if(t.dataset.sort){const k=t.dataset.sort;if(sortBy===k)sortDir=-sortDir;else{sortBy=k;sortDir=1}render();return}
   if(t.dataset.url){if(window.__TEST__)return;e.preventDefault();openUrl(t.dataset.url);return}
   if(t.dataset.mode){if(t.dataset.mode==='mag'&&!unlocked){pinDlg(!S.settings.pinHash);return}mode=t.dataset.mode;render();return}
   if(t.dataset.tab){tab=t.dataset.tab;render();return}
@@ -630,6 +637,7 @@ document.addEventListener('click',e=>{
   else if(a==='clearhistok'){closeDlg();mutate(s=>{s.history=[]},'History cleared').then(ok=>ok&&render())}
   else if(a==='clearrecent')askDlg('Clear recent requests?','The list of recent requests will be emptied for everyone. Orders that are still open stay in the Orders tab and keep their badges.','Clear list','clearrecentok');
   else if(a==='clearrecentok'){closeDlg();mutate(s=>{s.settings.recentFrom=new Date().toISOString()},'Recent requests cleared').then(ok=>ok&&render())}
+  else if(a==='sortdir'){sortDir=-sortDir;render()}
   else if(a==='restoreok'){const b=restoreDlg.data;closeDlg();mutate(s=>{const keep=s.settings||{};for(const k of Object.keys(s))delete s[k];Object.assign(s,defaults(clone(b)));/* settings the file leaves empty (PIN, contacts) keep their current values */const bs=b.settings||{};for(const[k,v]of Object.entries(keep))if(!(k in bs)||bs[k]===''||bs[k]==null)s.settings[k]=v},'Data restored').then(ok=>{if(ok){draft={};lsSet('draft',null);render()}})}
   else if(a==='addother'){const v=$('#other').value.trim();if(!v){$('#other').focus();return}addToBasket({id:null,name:v,art:'',unit:'',qty:''})}
   else if(a==='send')send(t.dataset.via);
