@@ -233,8 +233,8 @@ const firebaseConfig={
   appId:"1:572485075297:web:0778b02f790a424aacc520"
 };
 const APP_ACCOUNT="om.app@nabuurs.nl";   /* the shared app account; the access code is its password */
-const VAPID_KEY="__VAPID__";              /* Firebase → Cloud Messaging → Web Push certificate (public) */
-const PUSH_URL="__PUSH_URL__";            /* Cloudflare Worker that sends the notifications */
+const VAPID_KEY="BBFG_wxNCtbDnIURLQEzR49vz6iKfAfJiLO76C7rF5ALHKXx2GdMJSFceU6TtUn8_GG1yNXPUS6qU5k2v-Ec_8Q";              /* Firebase → Cloud Messaging → Web Push certificate (public) */
+const PUSH_URL="https://om-push.marcin-klubben12.workers.dev";            /* Cloudflare Worker that sends the notifications */
 
 const app=initializeApp(firebaseConfig);
 const auth=getAuth(app);
