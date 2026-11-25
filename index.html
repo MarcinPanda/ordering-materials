@@ -175,6 +175,7 @@ window.__WEB__=true;
     else{resetAuthed();if(document.readyState==='loading')addEventListener('DOMContentLoaded',()=>loginBox());else loginBox()}
   }));
   window.__omSignOut=async()=>{await fbReady;await fb.signOut()};
+  window.__omPush=async()=>{await fbReady;await authed;return fb.push};
 
   /* ---- live updates from other devices ---- */
   let lastRev=null;
@@ -220,7 +221,8 @@ window.__WEB__=true;
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut,setPersistence,browserLocalPersistence} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import {initializeFirestore,persistentLocalCache,persistentMultipleTabManager,doc,getDoc,runTransaction,onSnapshot} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {initializeFirestore,persistentLocalCache,persistentMultipleTabManager,doc,getDoc,setDoc,updateDoc,deleteField,runTransaction,onSnapshot} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {getMessaging,getToken,deleteToken,isSupported} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js";
 
 const firebaseConfig={
   apiKey:"AIzaSyAazUAY-zCyOUlbVNrGV81ntlGCvrRvrus",
@@ -231,6 +233,8 @@ const firebaseConfig={
   appId:"1:572485075297:web:0778b02f790a424aacc520"
 };
 const APP_ACCOUNT="om.app@nabuurs.nl";   /* the shared app account; the access code is its password */
+const VAPID_KEY="__VAPID__";              /* Firebase → Cloud Messaging → Web Push certificate (public) */
+const PUSH_URL="__PUSH_URL__";            /* Cloudflare Worker that sends the notifications */
 
 const app=initializeApp(firebaseConfig);
 const auth=getAuth(app);
@@ -239,6 +243,7 @@ let db;
 try{db=initializeFirestore(app,{localCache:persistentLocalCache({tabManager:persistentMultipleTabManager()})})}
 catch(e){db=initializeFirestore(app,{})}
 const ref=doc(db,"om","state");
+const pushRef=doc(db,"om","push");
 
 window.__fbResolve({
   ref,
@@ -247,7 +252,37 @@ window.__fbResolve({
   onAuth:cb=>onAuthStateChanged(auth,cb),
   get:()=>getDoc(ref),
   tx:fn=>runTransaction(db,fn),
-  watch:cb=>onSnapshot(ref,cb,()=>{})
+  watch:cb=>onSnapshot(ref,cb,()=>{}),
+  push:{
+    configured:()=>!!(VAPID_KEY&&!VAPID_KEY.startsWith("__")&&PUSH_URL&&!PUSH_URL.startsWith("__")),
+    supported:async()=>{try{return await isSupported()&&"Notification" in window&&"serviceWorker" in navigator}catch(e){return false}},
+    deviceId:()=>{let id=null;try{id=localStorage.getItem("om-device-id");if(!id){id="d"+Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem("om-device-id",id)}}catch(e){id="d-temp"}return id},
+    /* turn on: permission → FCM token → listed in om/push for the given topics */
+    async enable(topics,name){
+      const perm=await Notification.requestPermission();
+      if(perm!=="granted")throw new Error(perm==="denied"?"blocked":"dismissed");
+      await navigator.serviceWorker.register("sw.js");const reg=await Promise.race([navigator.serviceWorker.ready,new Promise((_,j)=>setTimeout(()=>j(new Error("app service worker did not start — reload the app and try again")),15000))]);
+      const token=await getToken(getMessaging(app),{vapidKey:VAPID_KEY,serviceWorkerRegistration:reg});
+      const id=this.deviceId();
+      await setDoc(pushRef,{devices:{[id]:{token,topics,name:name||"",at:new Date().toISOString()}}},{merge:true});
+      return id;
+    },
+    async disable(){
+      const id=this.deviceId();
+      try{await deleteToken(getMessaging(app))}catch(e){}
+      await setDoc(pushRef,{devices:{[id]:deleteField()}},{merge:true});
+    },
+    async state(){
+      const s=await getDoc(pushRef);const d=s.exists()?(s.data().devices||{})[this.deviceId()]:null;
+      return {on:!!d&&("Notification" in window)&&Notification.permission==="granted",topics:d?d.topics||[]:[],name:d?d.name||"":""};
+    },
+    /* ask the relay to notify everyone subscribed to a topic (except this device) */
+    async notify(topic,title,body,link,includeSelf){
+      const u=auth.currentUser;if(!u||!this.configured())return;
+      const t=await u.getIdToken();
+      return fetch(PUSH_URL,{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+t},body:JSON.stringify({topic,title,body,link,exclude:includeSelf?"":this.deviceId()})}).then(r=>r.json()).catch(()=>null);
+    }
+  }
 });
 
 </script>
@@ -323,6 +358,23 @@ function render(){
   if(fid){const n=document.querySelector(`.cnt[data-id="${fid}"]`);n&&n.focus()}
   else if(aid&&(aid==='q'||aid==='rq')){const n=document.getElementById(aid);if(n){n.focus();try{n.setSelectionRange(pos,pos)}catch(e){}}}
 }
+async function fillPush(){
+  const box=$('#pushbox');if(!box||!window.__omPush)return;
+  let p;try{p=await window.__omPush()}catch(e){box.innerHTML='<p class="small">Not available.</p>';return}
+  if(!p.configured()){box.innerHTML='<p class="small">Push notifications are not set up yet.</p>';return}
+  const ios=/iphone|ipad|ipod/i.test(navigator.userAgent), standalone=matchMedia('(display-mode: standalone)').matches||navigator.standalone;
+  if(!(await p.supported())){box.innerHTML=`<p class="small">${ios&&!standalone?'On iPhone, first add this app to the Home Screen (Share → Add to Home Screen), open it from there and come back here.':'This browser cannot receive notifications.'}</p>`;return}
+  const st=await p.state().catch(()=>({on:false}));
+  if(!$('#pushbox'))return;
+  $('#pushbox').innerHTML=st.on
+    ?`<p style="margin-top:0">✓ This device gets a notification for every <b>new request</b>.</p><div class="sendrow"><button data-act="pushtest">Send test notification</button><button data-act="pushoff">Turn off</button></div>`
+    :`<p class="small" style="margin-top:0">Get a notification on this device when someone submits a new request — also when the app is closed. Turn it on for the person who orders (and the deputy).</p><button class="pri" data-act="pushon">Turn on notifications</button>${Notification.permission==='denied'?'<p class="small" style="color:var(--red)">Notifications are blocked for this site in the browser/phone settings. Allow them there first.</p>':''}`;
+}
+function notifyNewRequest(req){
+  if(!window.__omPush)return;
+  const names=req.lines.map(l=>l.name.replace(/\s*\(.*\)$/,''));
+  window.__omPush().then(p=>p.notify('requests','New request · '+(req.for||'—'),names.slice(0,4).join(', ')+(names.length>4?' +'+(names.length-4)+' more':'')+(req.note?' — '+req.note:''),'./')).catch(()=>{});
+}
 function draw(){
   if(!S){$('#app').innerHTML=`<div class="err">${esc(loadErr||'Loading…')}</div>`;return}
   const mag=mode==='mag'&&unlocked, dirty=Object.keys(draft).length;
@@ -333,6 +385,7 @@ function draw(){
    ${mag?`<div class="tabs" role="tablist">${[['count','Stock count'],['orders','Orders'+(openLines()?' ('+openLines()+')':'')],['order','Out of stock'],['hist','History'],['set','Settings']].map(([k,t])=>`<button role="tab" data-tab="${k}" aria-selected="${tab===k}">${t}</button>`).join('')}</div>`:'<div style="height:18px"></div>'}</div>
   <main>${mag?(tab==='count'?vCount():tab==='order'?vOrder():tab==='orders'?vOrders():tab==='hist'?vHist():vSet()):vReq()}</main>
   <div class="save" id="savebar" ${mag&&dirty?'':'hidden'}>${saveBar()}</div>`;
+  if(mag&&tab==='set')fillPush();
 }
 
 /* ---------- staff mode: request ---------- */
@@ -381,6 +434,7 @@ async function send(via,o={}){
       lines:basket.map(b=>{const it=items[b.id]||{};return{item:b.id,name:b.name,art:b.art||'',unit:b.unit||'',supplier:it.supplier||'',link:it.link||'',status:'requested'}})};
     const ok=await mutate(s=>{s.requests=[...(s.requests||[]),req]},null);
     if(!ok){toast('Could not save the request in the app — check the network drive.',6000);return}
+    notifyNewRequest(req);
   }
   let url;
   if(via==='mail'){const subj='Consumables order ('+(reqFor||'—')+'): '+basket.map(b=>b.name.replace(/\s*\(.*\)$/,'')).slice(0,3).join(', ')+(basket.length>3?'…':'');
@@ -469,7 +523,7 @@ function vSet(){const st=S.settings;
    <button data-act="testmsg">Send test message</button></section>
   <section class="sup" style="padding:16px"><h2>Data backup</h2><p class="small" style="margin-top:0">A copy of all items, stock levels, history and settings in one file.</p>
    <div class="sendrow"><button data-act="backup">Download backup</button><label class="btnlike" for="restore-file">Restore from backup…</label></div><input type="file" id="restore-file" accept=".json,application/json" hidden></section>
-  ${window.__WEB__?`<section class="sup" style="padding:16px"><h2>This device</h2><p class="small" style="margin-top:0">Signed in to the shared database with the access code.</p><button data-act="signout">Sign out of this device</button></section>`:''}
+  ${window.__WEB__?`<section class="sup" style="padding:16px"><h2>Notifications</h2><div id="pushbox"><p class="small">Checking…</p></div></section><section class="sup" style="padding:16px"><h2>This device</h2><p class="small" style="margin-top:0">Signed in to the shared database with the access code.</p><button data-act="signout">Sign out of this device</button></section>`:''}
   <section class="sup" style="padding:16px"><h2>Stock PIN</h2><button data-act="setpin">Change PIN</button><p class="small">The PIN prevents accidental stock changes — it is not full security.</p></section>
   </div><p class="small" style="margin-top:12px">Settings are saved automatically as soon as you change them.</p>`}
 
@@ -560,6 +614,9 @@ document.addEventListener('click',e=>{
   else if(a==='export')download();
   else if(a==='backup')backup();
   else if(a==='gobasket'){e.preventDefault();$('#basket').scrollIntoView({behavior:'smooth',block:'start'})}
+  else if(a==='pushon'){t.disabled=true;t.textContent='Turning on…';window.__omPush().then(p=>p.enable(['requests'],'')).then(()=>{toast('Notifications are on for this device');fillPush()}).catch(e=>{const m=String(e&&e.message||e);toast(m==='blocked'?'Notifications are blocked — allow them in the browser/phone settings.':m==='dismissed'?'Notifications were not allowed.':'Could not turn on notifications: '+m,6000);fillPush()})}
+  else if(a==='pushoff'){window.__omPush().then(p=>p.disable()).then(()=>{toast('Notifications are off for this device');fillPush()}).catch(()=>toast('Could not turn off'))}
+  else if(a==='pushtest'){window.__omPush().then(p=>p.notify('requests','Test notification','If you see this, notifications work.','./',true)).then(r=>toast(r&&r.sent!=null?'Sent to '+r.sent+' device'+(r.sent===1?'':'s'):'Could not reach the notification service',6000))}
   else if(a==='signout'){if(window.__omSignOut)window.__omSignOut().then(()=>location.reload())}
   else if(a==='restoreok'){const b=restoreDlg.data;closeDlg();mutate(s=>{const keep=s.settings||{};for(const k of Object.keys(s))delete s[k];Object.assign(s,defaults(clone(b)));/* settings the file leaves empty (PIN, contacts) keep their current values */const bs=b.settings||{};for(const[k,v]of Object.entries(keep))if(!(k in bs)||bs[k]===''||bs[k]==null)s.settings[k]=v},'Data restored').then(ok=>{if(ok){draft={};lsSet('draft',null);render()}})}
   else if(a==='addother'){const v=$('#other').value.trim();if(!v){$('#other').focus();return}addToBasket({id:null,name:v,art:'',unit:'',qty:''})}
