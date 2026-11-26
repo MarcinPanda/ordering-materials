@@ -522,7 +522,6 @@ function vCount(){
   const th=(k,t,cls='')=>`<th class="sortable ${cls}" data-sort="${k}" title="Sort">${t}${sortBy===k?(sortDir>0?' ▲':' ▼'):''}</th>`;
   return `<div class="bar"><input type="search" id="q" placeholder="Search: name, number, location, supplier" value="${esc(q)}" aria-label="Search">
   <select id="filt" aria-label="Filter">${[['all','All statuses'],['todo','To count'],['ok','In stock'],['order','Out of stock'],['edited','Entered now']].map(([k,t])=>`<option value="${k}" ${filt===k?'selected':''}>${t}</option>`).join('')}</select>
-  <select id="sort" aria-label="Sort">${[['name','Sort: name'],['loc','Sort: location (route)'],['sup','Sort: supplier'],['prev','Sort: previous stock'],['phys','Sort: physical stock'],['unit','Sort: unit'],['status','Sort: status'],['counted','Sort: last count']].map(([k,t])=>`<option value="${k}" ${sortBy===k?'selected':''}>${t}</option>`).join('')}</select>
   <button data-act="new">+ New item</button><button data-act="export">Export CSV</button></div>
   <p class="note">Enter the counted stock in the yellow field; Enter moves to the next one. If the stock is unchanged, enter it anyway — the item will be marked as counted today.</p>
   ${rows.length?`<table class="stack"><thead><tr>${th('name','Material')}${th('loc','Location')}${th('prev','Previous stock','n')}${th('phys','Physical stock','n')}${th('unit','Unit')}${th('status','Status')}${th('counted','Last count')}<th></th></tr></thead><tbody>
@@ -558,7 +557,7 @@ function vSet(){const st=S.settings;
    <button data-act="testmsg">Send test message</button></section>
   <section class="sup" style="padding:16px"><h2>Data backup</h2><p class="small" style="margin-top:0">A copy of all items, stock levels, history and settings in one file.</p>
    <div class="sendrow"><button data-act="backup">Download backup</button><label class="btnlike" for="restore-file">Restore from backup…</label></div><input type="file" id="restore-file" accept=".json,application/json" hidden></section>
-  ${window.__WEB__?`<section class="sup" style="padding:16px"><h2>Notifications</h2><div id="pushbox"><p class="small">Checking…</p></div></section><section class="sup" style="padding:16px"><h2>This device</h2><p class="small" style="margin-top:0">App version: 25 Nov 2026, 21:52</p><p class="small" style="margin-top:0">Signed in to the shared database with the access code.</p><button data-act="signout">Sign out of this device</button></section>`:''}
+  ${window.__WEB__?`<section class="sup" style="padding:16px"><h2>Notifications</h2><div id="pushbox"><p class="small">Checking…</p></div></section><section class="sup" style="padding:16px"><h2>This device</h2><p class="small" style="margin-top:0">App version: 26 Nov 2026, 06:15</p><p class="small" style="margin-top:0">Signed in to the shared database with the access code.</p><button data-act="signout">Sign out of this device</button></section>`:''}
   <section class="sup" style="padding:16px"><h2>Stock PIN</h2><button data-act="setpin">Change PIN</button><p class="small">The PIN prevents accidental stock changes — it is not full security.</p></section>
   </div><p class="small" style="margin-top:12px">Settings are saved automatically as soon as you change them.</p>`}
 
