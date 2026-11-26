@@ -103,7 +103,7 @@ th.sortable{cursor:pointer;user-select:none}th.sortable:hover{color:var(--ink)}
 .nmrow{display:flex;align-items:center;gap:6px}.wait{display:inline-flex;color:light-dark(#a67c00,#ffd21f);cursor:help;flex-shrink:0;border-radius:50%;outline-offset:2px}
 #tip{position:fixed;z-index:60;background:#16181d;color:#fff;font-size:13px;padding:6px 10px;border-radius:8px;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.35);white-space:nowrap}
 .otab col.cq{width:130px}.oqty{width:70px;text-align:right;padding:6px 8px;background:var(--yfield);border:2px solid var(--yedge);border-radius:8px}
-.dslot{display:inline-block;width:52px;margin-right:8px;text-align:right;vertical-align:middle}
+.dslot{display:inline-block;width:64px;margin-right:6px;text-align:center;vertical-align:middle}.dslot .diff{font-size:inherit;font-variant-numeric:tabular-nums}
 
 /* desktop app additions */
 body{font-family:"Segoe UI",Barlow,system-ui,sans-serif}
@@ -558,7 +558,7 @@ function vSet(){const st=S.settings;
    <button data-act="testmsg">Send test message</button></section>
   <section class="sup" style="padding:16px"><h2>Data backup</h2><p class="small" style="margin-top:0">A copy of all items, stock levels, history and settings in one file.</p>
    <div class="sendrow"><button data-act="backup">Download backup</button><label class="btnlike" for="restore-file">Restore from backup…</label></div><input type="file" id="restore-file" accept=".json,application/json" hidden></section>
-  ${window.__WEB__?`<section class="sup" style="padding:16px"><h2>Notifications</h2><div id="pushbox"><p class="small">Checking…</p></div></section><section class="sup" style="padding:16px"><h2>This device</h2><p class="small" style="margin-top:0">App version: 26 Nov 2026, 07:12</p><p class="small" style="margin-top:0">Signed in to the shared database with the access code.</p><button data-act="signout">Sign out of this device</button></section>`:''}
+  ${window.__WEB__?`<section class="sup" style="padding:16px"><h2>Notifications</h2><div id="pushbox"><p class="small">Checking…</p></div></section><section class="sup" style="padding:16px"><h2>This device</h2><p class="small" style="margin-top:0">App version: 26 Nov 2026, 07:19</p><p class="small" style="margin-top:0">Signed in to the shared database with the access code.</p><button data-act="signout">Sign out of this device</button></section>`:''}
   <section class="sup" style="padding:16px"><h2>Stock PIN</h2><button data-act="setpin">Change PIN</button><p class="small">The PIN prevents accidental stock changes — it is not full security.</p></section>
   </div><p class="small" style="margin-top:12px">Settings are saved automatically as soon as you change them.</p>`}
 
