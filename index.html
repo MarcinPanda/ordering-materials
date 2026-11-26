@@ -63,7 +63,7 @@ tr.chg td{background:light-dark(#fffbe8,#221e0d)}
 .nm{font-weight:600}.art{font-size:13px;color:var(--mut)}
 .cnt{width:110px;text-align:right;background:var(--yfield);border:2px solid var(--yedge);font-weight:600;font-variant-numeric:tabular-nums}
 .cnt::placeholder{color:var(--mut);font-weight:400}
-.diff{font-size:13px;margin-left:6px;white-space:nowrap}
+.diff{font-size:13px;white-space:nowrap}
 .diff.up{color:var(--grn)}.diff.dn{color:var(--red)}
 .tag{display:inline-block;font:700 13px/1 Barlow,sans-serif;padding:6px 8px;border-radius:4px;white-space:nowrap;border:1.5px solid currentColor}
 .t-ok{color:var(--grn)}.t-order{color:var(--org)}.t-out{color:var(--red)}.t-count{color:var(--blu)}.t-data{color:var(--mut)}
@@ -103,6 +103,7 @@ th.sortable{cursor:pointer;user-select:none}th.sortable:hover{color:var(--ink)}
 .nmrow{display:flex;align-items:center;gap:6px}.wait{display:inline-flex;color:light-dark(#a67c00,#ffd21f);cursor:help;flex-shrink:0;border-radius:50%;outline-offset:2px}
 #tip{position:fixed;z-index:60;background:#16181d;color:#fff;font-size:13px;padding:6px 10px;border-radius:8px;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.35);white-space:nowrap}
 .otab col.cq{width:130px}.oqty{width:70px;text-align:right;padding:6px 8px;background:var(--yfield);border:2px solid var(--yedge);border-radius:8px}
+.dslot{display:inline-block;width:52px;margin-right:8px;text-align:right;vertical-align:middle}
 
 /* desktop app additions */
 body{font-family:"Segoe UI",Barlow,system-ui,sans-serif}
@@ -527,10 +528,10 @@ function vCount(){
   ${rows.length?`<table class="stack"><thead><tr>${th('name','Material')}${th('loc','Location')}${th('prev','Previous stock','n')}${th('phys','Physical stock','n')}${th('unit','Unit')}${th('status','Status')}${th('counted','Last count')}<th></th></tr></thead><tbody>
   ${rows.map(i=>{const c=calc(i),d=i.id in draft,v=d?draft[i.id]:'';
    return `<tr class="${d?'chg':''}" data-row="${i.id}"><td class="first"><div class="nmrow">${waitIcon(i)}${pname(i)}</div><div class="art">${esc(i.art)} · ${esc(i.supplier)}</div></td><td>${esc(i.loc)}</td><td class="n">${i.stock==null?'—':fmt(i.stock)}</td>
-   <td class="n"><input class="cnt" inputmode="decimal" data-id="${i.id}" value="${esc(v)}" placeholder="${i.stock==null?'':fmt(i.stock)}" aria-label="Physical stock ${esc(i.name)}"><span data-diff>${diffHTML(i)}</span></td>
+   <td class="n"><span class="dslot" data-diff>${diffHTML(i)}</span><input class="cnt" inputmode="decimal" data-id="${i.id}" value="${esc(v)}" placeholder="${i.stock==null?'':fmt(i.stock)}" aria-label="Physical stock ${esc(i.name)}"></td>
    <td>${esc(i.unit)}</td><td data-st>${tag(c)}</td><td>${fdate(i.counted)}</td><td><button class="sm" data-edit="${i.id}">Edit</button></td></tr>`}).join('')}</tbody></table>`:'<div class="empty">No items for this filter.</div>'}`;
 }
-function diffHTML(i){const d=i.id in draft,n=num(draft[i.id]);if(!d)return'';if(isNaN(n))return'<span class="diff dn">invalid number</span>';if(i.stock==null||n==null)return'';const df=n-i.stock;return df?`<span class="diff ${df>0?'up':'dn'}">${df>0?'+':''}${fmt(df)}</span>`:'<span class="diff">no change</span>'}
+function diffHTML(i){const d=i.id in draft,n=num(draft[i.id]);if(!d)return'';if(isNaN(n))return'<span class="diff dn">invalid</span>';if(i.stock==null||n==null)return'';const df=n-i.stock;return df?`<span class="diff ${df>0?'up':'dn'}">${df>0?'+':''}${fmt(df)}</span>`:'<span class="diff">±0</span>'}
 function live(id){const tr=document.querySelector(`tr[data-row="${id}"]`),i=S.items.find(x=>x.id===id);
   if(tr&&i){tr.classList.toggle('chg',id in draft);tr.querySelector('[data-diff]').innerHTML=diffHTML(i);tr.querySelector('[data-st]').innerHTML=tag(calc(i))}
   const k=$('#kpis');if(k)k.innerHTML=kpis();const sb=$('#savebar');sb.innerHTML=saveBar();sb.hidden=!Object.keys(draft).length}
@@ -557,7 +558,7 @@ function vSet(){const st=S.settings;
    <button data-act="testmsg">Send test message</button></section>
   <section class="sup" style="padding:16px"><h2>Data backup</h2><p class="small" style="margin-top:0">A copy of all items, stock levels, history and settings in one file.</p>
    <div class="sendrow"><button data-act="backup">Download backup</button><label class="btnlike" for="restore-file">Restore from backup…</label></div><input type="file" id="restore-file" accept=".json,application/json" hidden></section>
-  ${window.__WEB__?`<section class="sup" style="padding:16px"><h2>Notifications</h2><div id="pushbox"><p class="small">Checking…</p></div></section><section class="sup" style="padding:16px"><h2>This device</h2><p class="small" style="margin-top:0">App version: 26 Nov 2026, 06:15</p><p class="small" style="margin-top:0">Signed in to the shared database with the access code.</p><button data-act="signout">Sign out of this device</button></section>`:''}
+  ${window.__WEB__?`<section class="sup" style="padding:16px"><h2>Notifications</h2><div id="pushbox"><p class="small">Checking…</p></div></section><section class="sup" style="padding:16px"><h2>This device</h2><p class="small" style="margin-top:0">App version: 26 Nov 2026, 07:12</p><p class="small" style="margin-top:0">Signed in to the shared database with the access code.</p><button data-act="signout">Sign out of this device</button></section>`:''}
   <section class="sup" style="padding:16px"><h2>Stock PIN</h2><button data-act="setpin">Change PIN</button><p class="small">The PIN prevents accidental stock changes — it is not full security.</p></section>
   </div><p class="small" style="margin-top:12px">Settings are saved automatically as soon as you change them.</p>`}
 
